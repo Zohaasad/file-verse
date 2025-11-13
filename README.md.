@@ -1,0 +1,70 @@
+# Omni File System (OFS)
+
+## Overview
+The Omni File System (OFS) is a custom filesystem implemented in C++ that allows managing files, directories, users, and metadata inside a single `.omni` container file. It supports secure user authentication, file operations, directory operations, permissions, and filesystem statistics.
+
+---
+
+## Features
+- File operations: create, read, edit, delete, truncate, rename, check existence
+- Directory operations: create, list, delete, check existence
+- Metadata retrieval and permission management
+- User management: add, remove, list users
+- Filesystem statistics: usage, free space, fragmentation
+- Secure admin and user authentication
+
+---
+
+## Compilation
+
+To compile the project, run:
+
+
+g++ -std=c++17 -I./source/include -I./source/data_structures source/core/*.cpp -o compiled/main
+Running
+After compiling, run the executable:
+
+./compiled/main
+Usage
+User Authentication
+Login:
+SessionInfo* session;
+user_login(instance, "admin", "admin_password", &session);
+Logout:
+user_logout(session);
+File Operations
+file_create(session, "/example.txt");
+char* buffer;
+size_t size;
+file_read(session, "/example.txt", &buffer, &size);
+file_edit(session, "/example.txt", data, size, index);
+file_delete(session, "/example.txt");
+file_truncate(session, "/example.txt", new_size);
+file_rename(session, "/old.txt", "/new.txt");
+file_exists(session, "/example.txt");
+free_buffer(buffer);
+Directory Operations
+dir_create(session, "/mydir");
+FileEntry* entries;
+int count;
+dir_list(session, "/mydir", &entries, &count);
+dir_delete(session, "/mydir");
+dir_exists(session, "/mydir");
+Metadata and Permissions
+FileMetadata meta;
+get_metadata(session, "/example.txt", &meta);
+set_permissions(session, "/example.txt", 0755);
+FSStats stats;
+get_stats(session, &stats);
+Admin Operations
+user_add(instance, "newuser", "password", role);
+user_remove(instance, "username");
+UserEntry* users;
+int count;
+user_list(instance, &users, &count);
+Admin operations use the filesystem instance directly and do not require an active session.
+Shutdown
+Always cleanly shut down the filesystem to persist changes:
+fs_shutdown(instance);
+
+
