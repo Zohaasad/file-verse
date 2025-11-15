@@ -7,38 +7,11 @@
 #include <cstring>
 #include <vector>
 #include <ctime>
-
+#include "ofs_core.hpp"
 #include "../include/ofs_types.hpp"
 #include "ofs_instance.hpp"
 #include "meta_entry.hpp"
-extern int fs_format(const char* omni_path, const char* config_path);
-extern int fs_init(void** instance, const char* omni_path, const char* config_path);
-extern int fs_shutdown(void* instance);
-extern int user_login(void** session, const char* username, const char* password);
-extern int user_logout(void* session);
-extern int user_create(void* admin_session, const char* username, const char* password, UserRole role);
-extern int user_delete(void* admin_session, const char* username);
-extern int user_list(void* admin_session, UserInfo** users_out, int* count);
-extern int get_session_info(void* session, SessionInfo* info);
-extern int file_create(void* session, const char* path, const char* data, size_t size);
-extern int file_read(void* session, const char* path, char** buffer, size_t* size_out);
-extern int file_edit(void* session, const char* path, const char* data, size_t size, unsigned int index);
-extern int file_delete(void* session, const char* path);
-extern int file_truncate(void* session, const char* path, size_t new_size);
-extern int file_exists(void* session, const char* path);
-extern int file_rename(void* session, const char* old_path, const char* new_path);
 
-extern int dir_create(void* session, const char* path);
-extern int dir_list(void* session, const char* path, FileEntry** entries, int* count);
-extern int dir_delete(void* session, const char* path);
-extern int dir_exists(void* session, const char* path);
-
-extern int get_metadata(void* session, const char* path, FileMetadata* meta);
-extern int set_permissions(void* session, const char* path, uint32_t permissions);
-extern int get_stats(void* session, FSStats* stats);
-
-extern void free_buffer(void* buffer);
-extern const char* get_error_message(int error_code);
 static const char* default_uconf_content =
 "[filesystem]\n"
 "total_size = 104857600\n"
