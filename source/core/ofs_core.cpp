@@ -15,6 +15,7 @@
 #include "meta_entry.hpp"
 #include "../data_structures/simple_unordered_map.hpp"
 #include "../include/ofs_types.hpp"
+#include "ofs_core.hpp"
 static uint32_t find_free_meta_index(FSInstance* inst);
 static bool dir_block_read(FSInstance* inst, const MetaEntry& dir, std::vector<uint32_t>& children);
 static bool dir_add_child(FSInstance* inst, MetaEntry& parent, uint32_t child_idx);
