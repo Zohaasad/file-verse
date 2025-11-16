@@ -1,68 +1,83 @@
 
 #pragma once
-
+#include <string>
 #include <thread>
 #include <mutex>
-#include <condition_variable>
-#include <queue>
-#include <string>
-#include <atomic>
-#include <map>
+#include <unordered_map>
 #include <vector>
-#include <memory>
-#include "../core/ofs_instance.hpp"
+#include <queue>
+#include <condition_variable>
+
 struct OFSRequest {
-    std::string raw_json;        
-    int client_fd;                
-    std::string client_addr;
-    uint64_t request_time;        
+    std::string raw_cmd;
+    int client_fd;
+    std::string addr;
+    uint64_t timestamp;
 };
 
 struct OFSResponse {
-    std::string response_json;   
     int client_fd;
+    std::string response_json;
 };
-class OperationQueue {
-    std::queue<OFSRequest> queue;
+inline std::string make_response(const std::string& status, const std::string& operation,
+                                 const std::string& request_id,
+                                 const std::string& message = "",
+                                 const std::string& data = "") {
+    std::string json = "{";
+    json += "\"status\":\"" + status + "\"";
+    json += ",\"operation\":\"" + operation + "\"";
+    json += ",\"request_id\":\"" + request_id + "\"";
+    if (!message.empty()) json += ",\"error_message\":\"" + message + "\"";
+    if (!data.empty()) json += ",\"data\":\"" + data + "\"";
+    json += "}";
+    return json;
+}
+template<typename T>
+class TSQueue {
+private:
+    std::queue<T> q;
     std::mutex mtx;
     std::condition_variable cv;
 public:
-    void push(const OFSRequest& req) {
-        std::lock_guard<std::mutex> lock(mtx);
-        queue.push(req);
+    void push(const T& item) {
+        std::unique_lock<std::mutex> lock(mtx);
+        q.push(item);
         cv.notify_one();
     }
-    bool pop(OFSRequest& out) {
+
+    bool pop(T& item) {
         std::unique_lock<std::mutex> lock(mtx);
-        cv.wait(lock, [this]{ return !queue.empty(); });
-        out = queue.front();
-        queue.pop();
+        cv.wait(lock, [&]{ return !q.empty(); });
+        item = q.front();
+        q.pop();
         return true;
     }
-    bool empty() {
-        std::lock_guard<std::mutex> lock(mtx);
-        return queue.empty();
-    }
 };
+
 class OFSServer {
+public:
+    OFSServer();
+    ~OFSServer();
+
+    bool start(uint16_t port, void* fs_instance);
+    void stop();
+
+private:
     int server_fd;
     uint16_t listen_port;
-    std::atomic<bool> running;
+    bool running;
+    void* fs_inst;
+
     std::thread accept_thread;
     std::thread worker_thread;
-    OperationQueue op_queue;
-    std::map<int, std::string> client_buffers;
-    std::mutex buf_mtx;
 
-    FSInstance* fs_inst;
+    std::mutex buf_mtx;
+    std::unordered_map<int, std::string> client_buffers;
+
+    TSQueue<OFSRequest> op_queue;
 
     void acceptLoop();
     void workerLoop();
     void handleRequest(const OFSRequest& req);
     void sendResponse(const OFSResponse& resp);
-public:
-    OFSServer();
-    ~OFSServer();
-    bool start(uint16_t port, FSInstance* fs_inst);
-    void stop();
 };
