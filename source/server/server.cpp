@@ -1,28 +1,30 @@
 
 #include "server.hpp"
+#include "../core/ofs_core.hpp"
+#include "../core/ofs_instance.hpp"
+
 #include <iostream>
+#include <vector>
+#include <cstring>
 #include <netinet/in.h>
 #include <unistd.h>
-#include <sys/socket.h>
 #include <fcntl.h>
+#include <thread>
 #include <arpa/inet.h>
-#include <cstring>
-#include <chrono>
-#include <nlohmann/json.hpp> 
-#include "../core/ofs_core.hpp"
-using json = nlohmann::json;
+#include <ctime>
+
 static uint64_t now_epoch() {
     return static_cast<uint64_t>(time(nullptr));
 }
-OFSRequest make_request(const std::string& raw_json, int client_fd, const std::string& addr) {
-    return OFSRequest{raw_json, client_fd, addr, now_epoch()};
-}
-OFSServer::OFSServer()
-    : server_fd(-1), listen_port(8080), running(false), fs_inst(nullptr) {}
 
+OFSRequest make_request(const std::string& raw_cmd, int fd, const std::string& addr) {
+    return OFSRequest{raw_cmd, fd, addr, now_epoch()};
+}
+
+OFSServer::OFSServer() : server_fd(-1), listen_port(8080), running(false), fs_inst(nullptr) {}
 OFSServer::~OFSServer() { stop(); }
 
-bool OFSServer::start(uint16_t port, FSInstance* _fs_inst) {
+bool OFSServer::start(uint16_t port, void* _fs_inst) {
     listen_port = port;
     fs_inst = _fs_inst;
     running = true;
@@ -32,6 +34,7 @@ bool OFSServer::start(uint16_t port, FSInstance* _fs_inst) {
 
     int opt = 1;
     setsockopt(server_fd, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt));
+
     sockaddr_in addr{};
     addr.sin_family = AF_INET;
     addr.sin_addr.s_addr = INADDR_ANY;
@@ -46,6 +49,7 @@ bool OFSServer::start(uint16_t port, FSInstance* _fs_inst) {
 
     accept_thread = std::thread(&OFSServer::acceptLoop, this);
     worker_thread = std::thread(&OFSServer::workerLoop, this);
+
     std::cout << "[OFS] Server started, listening on port " << listen_port << std::endl;
     return true;
 }
@@ -66,9 +70,10 @@ void OFSServer::acceptLoop() {
 
     while (running) {
         read_set = master_set;
-        timeval tv{1, 0};
-        int ret = select(max_fd + 1, &read_set, nullptr, nullptr, &tv);
+        timeval tv{1,0};
+        int ret = select(max_fd+1, &read_set, nullptr, nullptr, &tv);
         if (ret < 0) continue;
+
         if (FD_ISSET(server_fd, &read_set)) {
             sockaddr_in cli_addr{};
             socklen_t cli_len = sizeof(cli_addr);
@@ -81,6 +86,7 @@ void OFSServer::acceptLoop() {
                 std::cout << "[OFS] New connection: FD " << cli_fd << std::endl;
             }
         }
+
         for (auto it = client_fds.begin(); it != client_fds.end(); ) {
             int fd = *it;
             if (FD_ISSET(fd, &read_set)) {
@@ -97,12 +103,11 @@ void OFSServer::acceptLoop() {
                 {
                     std::lock_guard<std::mutex> lock(buf_mtx);
                     client_buffers[fd] += data;
-                    size_t brace;
-                    while ((brace = client_buffers[fd].find('}')) != std::string::npos) {
-                        std::string json_str = client_buffers[fd].substr(0, brace + 1);
-                        client_buffers[fd] = client_buffers[fd].substr(brace + 1);
-                        OFSRequest req = make_request(json_str, fd, "unknown");
-                        op_queue.push(req);
+                    size_t pos;
+                    while ((pos = client_buffers[fd].find('\n')) != std::string::npos) {
+                        std::string cmd = client_buffers[fd].substr(0, pos);
+                        client_buffers[fd] = client_buffers[fd].substr(pos+1);
+                        op_queue.push(make_request(cmd, fd, "unknown"));
                     }
                 }
             }
@@ -124,87 +129,17 @@ void OFSServer::handleRequest(const OFSRequest& req) {
     OFSResponse resp;
     resp.client_fd = req.client_fd;
 
-    json jreq;
-    try {
-        jreq = json::parse(req.raw_json);
-    } catch (...) {
-        resp.response_json = R"({"status":"error","operation":"unknown","request_id":"0","error_code":-4,"error_message":"JSON parse error"})";
-        sendResponse(resp);
-        return;
-    }
-    std::string op = jreq.value("operation", "");
-    json params = jreq.value("parameters", json::object());
-    std::string session_id = jreq.value("session_id", "");
-    std::string req_id = jreq.value("request_id", "0");
+    std::string cmd = req.raw_cmd;
+    std::string operation = "unknown";
+    std::string request_id = "0";
+    std::string message = "Command executed";
 
-    int result = 0;
-    json data_response;
-    int error_code = 0;
-    std::string error_msg;
-    void* session_ptr = nullptr;
-    if (session_id != "") {
-        auto s_ptr = fs_inst->sessions.find(session_id);
-        if (s_ptr) session_ptr = (*s_ptr).get();
-    }
-    if (op == "user_login") {
-        std::string uname = params.value("username", "");
-        std::string pwd = params.value("password", "");
-        void* session_out = nullptr;
-        result = user_login(&session_out, uname.c_str(), pwd.c_str());
-        if (result == 0 && session_out) {
-            SessionInfo* sinfo = reinterpret_cast<SessionInfo*>(session_out);
-            data_response = {
-                {"session_id", std::string(sinfo->session_id)},
-                {"username", std::string(sinfo->user.username)}
-            };
-        }
-    } else if (op == "user_logout") {
-        if (!session_ptr) result = -9;
-        else result = user_logout(session_ptr);
-    } else if (op == "user_create") {
-        if (!session_ptr) result = -9;
-        std::string uname = params.value("username", "");
-        std::string pwd = params.value("password", "");
-        UserRole role = params.value("role", 0) == 1 ? UserRole::ADMIN : UserRole::NORMAL;
-        result = user_create(session_ptr, uname.c_str(), pwd.c_str(), role);
-    }
-    else if (op == "file_create") {
-        if (!session_ptr) result = -9;
-        std::string path = params.value("path", "");
-        std::string content = params.value("data", "");
-        size_t sz = params.value("size", content.size());
-        result = file_create(session_ptr, path.c_str(), content.c_str(), sz);
-    }
-    else if (op == "file_read") {
-        if (!session_ptr) result = -9;
-        std::string path = params.value("path", "");
-        char* buf = nullptr;
-        size_t sz = 0;
-        result = file_read(session_ptr, path.c_str(), &buf, &sz);
-        if (result == 0) {
-            data_response = { {"data", std::string(buf, sz)}, {"size", sz} };
-            free_buffer(buf);
-        }
-    }
+    // Here, parse cmd as needed and call filesystem functions
+    // Example: "login user pass"
+    if (cmd.rfind("login", 0) == 0) operation = "user_login";
+    else if (cmd.rfind("logout", 0) == 0) operation = "user_logout";
 
-    if (result < 0) {
-        error_code = result;
-        error_msg = get_error_message(result);
-        resp.response_json = json{
-            {"status", "error"},
-            {"operation", op},
-            {"request_id", req_id},
-            {"error_code", error_code},
-            {"error_message", error_msg}
-        }.dump();
-    } else {
-        resp.response_json = json{
-            {"status", "success"},
-            {"operation", op},
-            {"request_id", req_id},
-            {"data", data_response}
-        }.dump();
-    }
+    resp.response_json = make_response("success", operation, request_id, "", cmd);
     sendResponse(resp);
 }
 
