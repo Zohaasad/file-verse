@@ -177,3 +177,24 @@ int main() {
     close(server_fd);
     return 0;
 }
+/*
+#include "server.hpp"
+#include <iostream>
+
+int main() {
+    OFSServer server;
+
+    void* fs_instance = nullptr;
+   
+    if (!server.start(8080, fs_instance)) {
+        std::cerr << "Failed to start server\n";
+        return 1;
+    }
+
+    std::cout << "Press Enter to stop server...\n";
+    std::cin.get();
+
+    server.stop();
+    return 0;
+}
+*/
