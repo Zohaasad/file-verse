@@ -306,3 +306,9 @@ fs_shutdown(instance);
 ```
 
 - Ensures all metadata and data blocks are flushed to the `.omni` file.
+- 
+The results are 
+
+![alt text](1-2.jpg)
+![alt text](2.jpg)
+![alt text](3.jpg)
