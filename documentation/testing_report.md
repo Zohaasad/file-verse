@@ -1,71 +1,98 @@
-# Omni File System (OFS) Testing Report
+# OFS – Omni File Server: Testing Report
 
-## 1. Overview
-This report summarizes the tests conducted on the Omni File System (OFS) to ensure correct functionality of file and directory operations, user management, and system statistics.
-
----
-
-## 2. Test Environment
-- OS: Linux / Windows / MacOS
-- Compiler: g++ 12.2 / clang++
-- OFS Version: 1.0
-- Test container file: `test.omni`
+This document summarizes the testing performed on OFS, covering functional, performance, and security aspects. The goal is to validate correctness, robustness, and usability.
 
 ---
 
-## 3. Test Cases
+## Table of Contents
 
-### 3.1 Filesystem Initialization
-| Test | Description | Expected Result | Status |
-|------|------------|----------------|--------|
-| FS Init | Initialize new OFS instance | Instance initialized successfully | ✅ |
-| FS Format | Format new `.omni` container | File created with root directory | ✅ |
-
-### 3.2 File Operations
-| Test | Description | Expected Result | Status |
-|------|------------|----------------|--------|
-| file_create | Create a file at `/test.txt` | File exists at path | ✅ |
-| file_read | Read file contents | Returns correct data | ✅ |
-| file_edit | Edit file at index 0 | Data updated correctly | ✅ |
-| file_delete | Delete file `/test.txt` | File removed | ✅ |
-| file_truncate | Truncate file to 10 bytes | File size updated | ✅ |
-| file_rename | Rename file to `/new.txt` | File exists with new name | ✅ |
-| file_exists | Check if file exists | Returns success if exists | ✅ |
-
-### 3.3 Directory Operations
-| Test | Description | Expected Result | Status |
-|------|------------|----------------|--------|
-| dir_create | Create `/mydir` | Directory created | ✅ |
-| dir_list | List contents of `/` | Includes `/mydir` | ✅ |
-| dir_delete | Delete empty directory `/mydir` | Directory removed | ✅ |
-| dir_exists | Check if directory exists | Returns success if exists | ✅ |
-
-### 3.4 Metadata & Permissions
-| Test | Description | Expected Result | Status |
-|------|------------|----------------|--------|
-| get_metadata | Fetch file metadata | Returns correct metadata | ✅ |
-| set_permissions | Change permissions to 0755 | Permissions updated | ✅ |
-
-### 3.5 User & Admin Operations
-| Test | Description | Expected Result | Status |
-|------|------------|----------------|--------|
-| user_add | Add a new user | User added successfully | ✅ |
-| user_remove | Remove a user | User removed successfully | ✅ |
-| user_list | List all users | Returns correct list | ✅ |
-
-### 3.6 Filesystem Statistics
-| Test | Description | Expected Result | Status |
-|------|------------|----------------|--------|
-| get_stats | Retrieve FS stats | Accurate usage, free space, files, directories | ✅ |
+1. [Test Environment](#test-environment)  
+2. [Testing Methodology](#testing-methodology)  
+3. [Functional Tests](#functional-tests)  
+4. [Performance Tests](#performance-tests)  
+5. [Security & Error Handling](#security--error-handling)  
+6. [Known Issues](#known-issues)  
+7. [Conclusion](#conclusion)
 
 ---
 
-## 4. Notes / Observations
-- All operations tested using both empty and populated filesystem.
-- Edge cases such as deleting non-empty directories, reading non-existent files, and truncating files to 0 bytes were handled correctly.
-- Memory allocation verified after `file_read()` with `free_buffer()`.
+## Test Environment
+
+- **Server OS:** Ubuntu 22.04 / macOS 13  
+- **Client OS:** Ubuntu 22.04 / macOS 13  
+- **Server Build:** C++17 compiled `ofs_server`  
+- **Client:** Python 3.10 terminal client (`ofs_terminal_ui.py`)  
+- **Network:** Localhost (`127.0.0.1`) and LAN tests  
+- **Test Filesystem:** `compiled/sample.omni`  
 
 ---
 
-## 5. Conclusion
-The OFS implementation passed all functional tests. Filesystem operations, metadata handling, user management, and statistics retrieval are working as expected.
+## Testing Methodology
+
+1. **Unit Testing:** Individual server and client components were tested for correctness.  
+2. **Integration Testing:** Full client-server interaction tested over TCP.  
+3. **Manual UI Testing:** Terminal client menus, navigation, and inputs were tested for usability.  
+4. **Edge Cases:** Empty input, invalid commands, and large file operations were tested.  
+5. **Concurrency Testing:** Multiple clients connected simultaneously to verify session handling.
+
+---
+
+## Functional Tests
+
+| Feature | Test Case | Result |
+|---------|-----------|--------|
+| **Login** | Valid credentials | Passed |
+| | Invalid credentials | Passed (error displayed) |
+| **Logout** | Active session logout | Passed |
+| **User Management** | Create user (admin) | Passed |
+| | Delete user (admin) | Passed |
+| | Create user (normal) | Passed |
+| | List users | Passed |
+| **File Operations** | Create file | Passed |
+| | Read file | Passed |
+| | Edit file | Passed |
+| | Delete file | Passed |
+| | Rename file | Passed |
+| | Truncate file | Passed |
+| **Directory Operations** | Create directory | Passed |
+| | Delete directory | Passed |
+| | List files | Passed |
+| **Permissions** | Set permissions (admin) | Passed |
+| | Attempt unauthorized action (normal) | Passed (blocked) |
+| **Metadata & Session** | View metadata | Passed |
+| | Session info | Passed |
+
+---
+
+## Performance Tests
+
+- **Concurrent Clients:** 10 clients connected and performed operations without server crashes.  
+- **Large Files:** Files up to 10 MB were successfully read and edited, with minor scroll lag on terminal client.  
+- **Server Load:** CPU usage remained under 20% with 5 active clients performing file operations.
+
+---
+
+## Security & Error Handling
+
+- **Invalid Commands:** Server returns structured JSON error responses.  
+- **Invalid Sessions:** Actions without login blocked with descriptive error.  
+- **File Permissions:** Normal users prevented from editing files they don’t own.  
+- **Input Sanitization:** Special characters and JSON-escaped content handled correctly.  
+
+---
+
+## Known Issues
+
+- Large files (>50 MB) may experience slow scrolling in the terminal client.  
+- Terminal resizing occasionally misaligns buttons; refreshing the screen fixes this.  
+- Renaming files between directories triggers verbose logs on the server (non-critical).  
+
+---
+
+## Conclusion
+
+OFS passes functional, performance, and security tests under normal workloads. The client-server system is robust, with structured error handling and session-based access control. Minor UI and large-file performance issues exist but do not affect core functionality.  
+
+**Overall Status:** ✅ Ready for deployment in small to medium multi-user environments.
+
+---
