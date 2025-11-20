@@ -1,31 +1,18 @@
-# OFS – Omni File Server: Design Choices
-
-This document explains the core architecture, design rationale, and implementation strategies behind the Omni File Server (OFS). It covers the system's internal structure, request processing, concurrency model, virtual filesystem design, and data handling strategies.
-
-## Table of Contents
-
-1. [Overall Architecture](#overall-architecture)
-2. [Modules and Responsibilities](#modules-and-responsibilities)
-3. [Data Structures Layer](#data-structures-layer)
-4. [Core Layer](#core-layer)
-5. [Interface Layer](#interface-layer)
-6. [Client-Server Communication](#client-server-communication)
-7. [Session and Authentication](#session-and-authentication)
-8. [Virtual Filesystem Design](#virtual-filesystem-design)
-9. [Concurrency and Threading Model](#concurrency-and-threading-model)
-10. [Memory and Performance](#memory-and-performance)
-11. [Security and Robustness](#security-and-robustness)
-12. [Design Goals](#design-goals)
-
----
-
-## Overall Architecture
-
-OFS is designed as a lightweight, modular virtual filesystem, implemented in C++. It simulates a persistent, block-based filesystem stored inside a single `.omni` binary file.
-
-### Layered Structure
-
-```
+OFS – Omni File Server: Design Choices
+This document explains the design rationale, architecture, and implementation strategies of the Omni File Server (OFS). It details the data structures, virtual filesystem layout, concurrency model, memory strategies, and reasoning behind each choice.
+Table of Contents
+Overall Architecture
+Data Structures and Rationale
+User Indexing
+Directory Tree Representation
+Free Space Tracking
+Mapping File Paths to Disk
+.omni File Structure
+Memory Management
+Optimizations
+Summary
+Overall Architecture
+OFS is a modular, multi-user, TCP-based virtual filesystem, implemented in C++. The system is layered:
 +-----------------+ TCP +-----------------+
 | Terminal Client | <------------------> | OFS Server |
 +-----------------+ +-----------------+
@@ -34,174 +21,101 @@ OFS is designed as a lightweight, modular virtual filesystem, implemented in C++
 | Session Manager |
 | Virtual FS      |
 +-----------------+
-```
-
-- **Server** handles all filesystem operations, authentication, and session management.
-- **Client** handles user input, display, and command formatting.
-- **Communication** is over TCP, with newline-delimited commands and JSON responses.
-
----
-
-## Modules and Responsibilities
-
-### 1. Server Core (`server.cpp`, `server.hpp`)
-
-- Accepts TCP connections.
-- Manages client sessions (`client_fd → session`).
-- Queues client requests in a thread-safe `TSQueue<OFSRequest>`.
-- Spawns worker threads to process requests concurrently.
-- Sends JSON-formatted responses to clients.
-
-### 2. File System Core (`ofs_core.hpp` + `ofs_core.cpp`)
-
-- `ofs_core.hpp` declares the virtual filesystem API.
-- `ofs_core.cpp` implements filesystem logic, including reading/writing file data, managing metadata, and maintaining internal structures (`FileEntry`, `FileMetadata`).
-- Provides operations: create/read/edit/delete files and directories, rename, truncate.
-- Maintains metadata: owner, permissions, timestamps, block usage.
-- Uses a precompiled `.omni` file as the FS image; runtime operations manipulate the in-memory structures.
-
-### 3. Client (`ofs_terminal_ui.py`)
-
-- Terminal-based, menu-driven interface using curses.
-- Supports input boxes, read/edit file screens, and scrollable file views.
-- Sends user commands to the server and interprets JSON responses.
-
----
-
-## Data Structures Layer
-
-### SimpleHashMap
-
-- A templated hash map implemented from scratch to avoid STL overhead.
-- Used for fast lookup of user indices, path mappings, and session references.
-- Key operations: `insert`, `erase`, `contains`, `find` – average O(1) complexity.
-
-### MetaEntry
-
-- Represents a file or directory record.
-- Each entry is fixed-size (72 bytes), ensuring predictable on-disk alignment.
-- Fields include permissions, timestamps, and owner ID for Unix-like semantics.
-
-### FSInstance
-
-- Holds all runtime state:
-  - File handle for the `.omni` file.
-  - Metadata vectors.
-  - Bitmaps for free space tracking.
-  - Session and user maps.
-  - Encoding and security buffers.
-- Encapsulation ensures thread-safe multi-session handling.
-
----
-
-## Core Layer
-
-- Implements all filesystem operations and internal state management.
-- Uses the data structures layer for indexing and caching.
-- Supports atomic operations for files and directories.
-- Provides error codes (`OFSErrorCodes`) for all operations.
-- Separates low-level storage logic from networking and UI.
-
----
-
-## Interface Layer
-
-- Exposes user-facing APIs: `fs_format`, `file_create`, `user_login`, etc.
-- Provides a clean boundary for the server to invoke filesystem operations safely.
-- Functions are designed to be modular and testable independently.
-
----
-
-## Client-Server Communication
-
-**Protocol:** TCP, text-based commands with newline separators.
-
-**Command Format:** `operation arg1 arg2 ...`
-
-**Response Format:** JSON, e.g.:
-
-```json
-{
-  "status": "success",
-  "operation": "read_file",
-  "request_id": "0",
-  "error_message": "",
-  "data": "File content here"
-}
-```
-
-- Server parses quoted arguments to support filenames with spaces.
-- **Advantages:** human-readable, structured, easy to debug.
-
----
-
-## Session and Authentication
-
-- Each connection gets a session object, stored in a thread-safe map (`client_fd → session`).
-- **Roles:** `admin` (full access), `normal` (restricted).
-- **Lifecycle:**
-  - Login → session created.
-  - Requests → session validated.
-  - Logout → session removed.
-- Unauthorized operations return `ERROR_INVALID_SESSION`.
-
----
-
-## Virtual Filesystem Design
-
-- `.omni` file stores the persistent filesystem image.
-- Supports hierarchical directories and files.
-- **File operations:** create, read, edit, delete, rename, truncate.
-- **Directory operations:** create, list, delete.
-- **Metadata:** owner, permissions, timestamps, block usage.
-- Internal structures (`FileEntry`, `FileMetadata`) ensure atomic, thread-safe operations.
-
----
-
-## Concurrency and Threading Model
-
-- **Accept Thread:** handles new client connections.
-- **Worker Threads:** process requests from `TSQueue<OFSRequest>`.
-- **Thread-Safe Queue (`TSQueue`):** ensures safe request queuing.
-- **Session Mutex:** protects `client_sessions` from concurrent access.
-- **Rationale:** separates network I/O from filesystem operations, allowing multiple concurrent clients without blocking.
-
----
-
-## Memory and Performance
-
-- Hash-based caching reduces repeated lookups.
-- Minimal heap usage: vectors and static buffers avoid unnecessary allocations.
-- Fixed-size metadata blocks guarantee predictable on-disk layout and fast seeks.
-- Efficient memory management ensures performance even with many concurrent clients.
-
----
-
-## Security and Robustness
-
-- Private keys and encoding maps are pre-zeroed to prevent uninitialized memory leaks.
-- User credentials enforce access control.
-- All functions return codes, aborting safely on fatal errors.
-- Modular design allows replacing or extending components safely.
-
----
-
-## Design Goals
-
-- **Simplicity and clarity** in implementation.
-- **Separation of layers** (data structures, core, interface, client).
-- **Full traceability** via verbose test output.
-- **Deterministic file layout** for portability and debugging.
-- **Robust multi-client support** with consistent error handling.
-
----
-
-## Summary
-
-OFS is designed for robustness, scalability, and maintainability:
-
-- **Modular architecture** separates networking, sessions, and filesystem management.
-- **Threaded request processing** ensures responsive multi-client performance.
-- **JSON-based communication** simplifies client implementation and debugging.
-- **Terminal client** provides a user-friendly interface without GUI dependencies.
-- **Detailed core data structures** and memory strategies ensure fast, safe, and traceable operations.
+Server: Handles authentication, session management, and filesystem operations.
+Client: Terminal-based menu UI for user commands.
+Communication: TCP with newline-delimited commands and JSON responses.
+Reasoning:
+Layer separation improves maintainability and testability.
+Multi-threaded design allows multiple clients simultaneously without blocking.
+Queue-based request processing decouples network I/O from filesystem operations for better performance.
+Data Structures and Rationale
+Hash Map (SimpleHashMap)
+Used for user indexing, path-to-metadata lookup, and session management.
+Reason: Provides O(1) average lookup, crucial for fast user_login and file access.
+Thread-Safe Queue (TSQueue)
+Stores incoming client requests before worker threads process them.
+Reason: Ensures thread-safe producer-consumer behavior, allowing concurrent clients without race conditions.
+Vectors / Fixed-size Metadata
+Metadata and session lists are stored in vectors of fixed-size entries.
+Reason: Predictable memory layout and fast iteration/random access.
+User Indexing
+Structure: SimpleHashMap<std::string, UserInfo>
+Maps username → UserInfo (password, role, session).
+Reasoning:
+user_login requires instant lookup by username.
+Hash map avoids scanning a list of users.
+Supports O(1) insertion, deletion, and verification.
+Directory Tree Representation
+Structure: MetaEntry nodes for files/directories stored in a metadata vector.
+Each node contains:
+Name, type (file/dir)
+Permissions and owner
+Parent/child references
+Reasoning:
+Allows fast hierarchical traversal.
+Supports directory creation, deletion, and listing efficiently.
+Easy to serialize/deserialize to the .omni file.
+Free Space Tracking
+Structure: Bitmap (one bit per block).
+Reasoning:
+Efficient O(1) allocation/deallocation of blocks.
+Minimizes overhead for large filesystems.
+Easy to persist in the .omni file header.
+Mapping File Paths to Disk
+Structure: FileMetadata per file, storing path, size, and block pointers.
+Path Index: Maps full path → metadata entry.
+Reasoning:
+Avoids scanning the entire disk to locate a file.
+Supports fast reads, edits, and truncation.
+Enables atomic updates without corrupting other files.
+.omni File Structure
+Section	Purpose
+Header (OMNIHeader)	Basic config, offsets, and bitmap location
+Bitmap	Tracks free/used data blocks
+Metadata Region	Stores MetaEntry records (fixed-size)
+Data Blocks	Actual file content
+Reasoning:
+Deterministic layout enables fast seeks and predictable memory usage.
+Fixed-size metadata entries simplify indexing and serialization.
+Separates metadata from data for atomic updates and concurrency safety.
+Memory Management
+Dynamically allocated buffers for file content.
+Temporary buffers used during edits for atomic writes.
+Fixed-size entries and pre-allocated vectors reduce heap fragmentation.
+Clients must call free_buffer() to release memory after reading.
+Reasoning:
+Ensures safety, avoids memory leaks, and supports multi-client concurrency.
+Optimizations
+Hash-based caching reduces repeated lookups.
+Fixed-size metadata ensures predictable on-disk offsets.
+Thread-safe queue decouples network and FS processing for performance.
+Atomic file edits prevent partial writes.
+Multi-threaded worker pool improves responsiveness under load.
+Summary
+Hash maps: O(1) lookups for users and paths.
+Bitmaps: Efficient free block tracking.
+MetaEntry nodes: Structured directory and file storage.
+TSQueue: Thread-safe request handling.
+.omni layout: Deterministic and atomic-friendly.
+Memory strategies: Temporary buffers, fixed-size entries, minimal heap usage.
+Each design choice balances performance, safety, and concurrency to make OFS robust for multi-user environments.
+Operation Queue & Thread Management
+OFS uses a thread-safe request queue (TSQueue) to manage client operations efficiently. The server architecture separates networking from processing, allowing multiple clients to interact concurrently without blocking.
+How it works:
+Accept Thread: Continuously listens for new client connections over TCP. Each new client is assigned a session and a file descriptor.
+Request Queue:
+Incoming client commands are parsed and wrapped as OFSRequest objects.
+Requests are pushed into TSQueue, a thread-safe queue with internal mutex and condition variable.
+If the queue is empty, worker threads wait efficiently (blocking) until a new request arrives.
+Worker Threads:
+One or more threads continuously pop requests from the queue.
+Each worker thread processes the request: validates the session, executes the requested filesystem operation, and generates a JSON-formatted response.
+Response Handling:
+Responses (OFSResponse) contain the client file descriptor and JSON data.
+The server sends responses back over TCP to the corresponding client socket.
+Thread-safe mechanisms ensure responses are sent correctly even under high concurrency.
+Key Benefits:
+Concurrency: Multiple clients can perform operations simultaneously.
+Thread Safety: Mutexes and atomic operations prevent race conditions.
+Responsiveness: Accept thread handles connections without blocking file operations.
+Scalability: Worker threads can be increased to handle higher loads efficiently.
