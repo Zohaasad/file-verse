@@ -1,70 +1,70 @@
-# Omni File System (OFS)
+# OFS – Omni File Server
 
-## Overview
-The Omni File System (OFS) is a custom filesystem implemented in C++ that allows managing files, directories, users, and metadata inside a single `.omni` container file. It supports secure user authentication, file operations, directory operations, permissions, and filesystem statistics.
+**OFS** is a multi-user, TCP-based file server providing a virtual filesystem interface. It allows clients to manage files and directories, perform read/write operations, and view file metadata securely through a session-based system. The client interface is terminal-based, using a menu-driven UI.
 
 ---
 
 ## Features
-- File operations: create, read, edit, delete, truncate, rename, check existence
-- Directory operations: create, list, delete, check existence
-- Metadata retrieval and permission management
-- User management: add, remove, list users
-- Filesystem statistics: usage, free space, fragmentation
-- Secure admin and user authentication
+
+- Multi-user authentication with `admin` and `normal` roles.
+- File operations: create, read, edit, delete, rename, truncate.
+- Directory operations: create, list, delete.
+- Session management and permissions enforcement.
+- JSON-based protocol for structured communication.
+- Multi-threaded server for handling concurrent connections.
+- Terminal-based client with intuitive navigation and input.
 
 ---
 
-## Compilation
+## System Requirements
 
-To compile the project, run:
+- Linux or macOS.
+- C++17 compiler (e.g., g++).
+- Python 3.8+ (for terminal client).
+- Network access between client and server.
+- Precompiled files:
+  - `compiled/sample.omni`
+  - `compiled/default.uconf`
 
+---
 
-g++ -std=c++17 -I./source/include -I./source/data_structures source/core/*.cpp -o compiled/main
-Running
-After compiling, run the executable:
+## Installation & Build
 
-./compiled/main
-Usage
-User Authentication
+### 1. Compile the server
+
+```bash
+g++ -std=c++17 server/server.cpp server/main_server.cpp -pthread -o ofs_server
+2. Ensure configuration files exist
+compiled/sample.omni
+compiled/default.uconf
+These files contain filesystem definitions and server configuration.
+3. Start the server
+./ofs_server
+Server starts listening on the default port 8080.
+Configuration options (port, max_connections, queue_timeout) can be set in default.uconf.
+4. Run the terminal client
+python3 ui/ofs_terminal_ui.py
+Connects to the server on the default host and port.
+Displays a login prompt. Enter your credentials to access the file server.
+Usage Notes
+Navigation: Use arrow keys to move, Enter to select, Esc to cancel or go back.
+Admin privileges: Required for user management and permission changes.
+JSON responses: All server responses follow a structured JSON format:
+{
+  "status": "success",
+  "operation": "read_file",
+  "request_id": "0",
+  "error_message": "",
+  "data": "File content here"
+}
+Error handling: Operations include descriptive error messages in error_message if a failure occurs.
+Quick Start Example
+Start server:
+./ofs_server
+Launch client:
+python3 ui/ofs_terminal_ui.py
 Login:
-SessionInfo* session;
-user_login(instance, "admin", "admin_password", &session);
-Logout:
-user_logout(session);
-File Operations
-file_create(session, "/example.txt");
-char* buffer;
-size_t size;
-file_read(session, "/example.txt", &buffer, &size);
-file_edit(session, "/example.txt", data, size, index);
-file_delete(session, "/example.txt");
-file_truncate(session, "/example.txt", new_size);
-file_rename(session, "/old.txt", "/new.txt");
-file_exists(session, "/example.txt");
-free_buffer(buffer);
-Directory Operations
-dir_create(session, "/mydir");
-FileEntry* entries;
-int count;
-dir_list(session, "/mydir", &entries, &count);
-dir_delete(session, "/mydir");
-dir_exists(session, "/mydir");
-Metadata and Permissions
-FileMetadata meta;
-get_metadata(session, "/example.txt", &meta);
-set_permissions(session, "/example.txt", 0755);
-FSStats stats;
-get_stats(session, &stats);
-Admin Operations
-user_add(instance, "newuser", "password", role);
-user_remove(instance, "username");
-UserEntry* users;
-int count;
-user_list(instance, &users, &count);
-Admin operations use the filesystem instance directly and do not require an active session.
-Shutdown
-Always cleanly shut down the filesystem to persist changes:
-fs_shutdown(instance);
-
+Username: admin
+Password: password123
+Navigate menu to create, read, edit, or delete files and directories.
 
