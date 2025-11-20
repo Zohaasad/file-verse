@@ -20,7 +20,7 @@ This document summarizes the testing performed on OFS, covering functional, perf
 
 - **Server OS:** Ubuntu 22.04 / macOS 13  
 - **Client OS:** Ubuntu 22.04 / macOS 13  
-- **Server Build:** C++17 compiled `ofs_server`  
+- **Server Build:** C++17 compiled `compiled/server`
 - **Client:** Python 3.10 terminal client (`ofs_terminal_ui.py`)  
 - **Network:** Localhost (`127.0.0.1`) and LAN tests  
 - **Test Filesystem:** `compiled/sample.omni`  
