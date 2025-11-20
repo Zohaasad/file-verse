@@ -148,6 +148,12 @@ Directories are special `MetaEntry` objects (type = directory) and can contain n
 
 ---
 
+### Memory vs Disk Access
+
+- Metadata (`FileMetadata`, `MetaEntry`) and path indices are loaded into memory at server start for fast lookup.
+- Actual file content is read from disk into temporary buffers only during read/edit operations.
+- Bitmap and header remain in memory for quick free space tracking.
+
 ## Error Handling and Validation
 
 Each public API function returns an integer code:
