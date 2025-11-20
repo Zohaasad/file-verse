@@ -1,8 +1,6 @@
 # OFS – Omni File Server
 
-**OFS** is a multi-user, TCP-based file server providing a virtual filesystem interface. It allows clients to manage files and directories, perform read/write operations, and view file metadata securely through a session-based system. The client interface is terminal-based, using a menu-driven UI.
-
----
+OFS is a multi-user, TCP-based file server providing a virtual filesystem interface. Clients can manage files and directories, perform read/write operations, and view metadata securely via session-based access. The client interface is terminal-based, menu-driven, and intuitive.
 
 ## Features
 
@@ -11,10 +9,8 @@
 - Directory operations: create, list, delete.
 - Session management and permissions enforcement.
 - JSON-based protocol for structured communication.
-- Multi-threaded server for handling concurrent connections.
-- Terminal-based client with intuitive navigation and input.
-
----
+- Multi-threaded server handling concurrent client connections.
+- Terminal-based client with arrow key navigation and input prompts.
 
 ## System Requirements
 
@@ -22,34 +18,80 @@
 - C++17 compiler (e.g., g++).
 - Python 3.8+ (for terminal client).
 - Network access between client and server.
-- Precompiled files:
+- Precompiled configuration and filesystem files:
   - `compiled/sample.omni`
   - `compiled/default.uconf`
-
----
 
 ## Installation & Build
 
 ### 1. Compile the server
 
+Navigate to the server source directory and compile:
+
 ```bash
-g++ -std=c++17 server/server.cpp server/main_server.cpp -pthread -o ofs_server
-2. Ensure configuration files exist
-compiled/sample.omni
-compiled/default.uconf
-These files contain filesystem definitions and server configuration.
-3. Start the server
+cd ~/Documents/fileverse_project/compiled/server
+g++ -std=c++17 server.cpp main_server.cpp -pthread -o ofs_server
+```
+
+- `-std=c++17` ensures C++17 compatibility.
+- `-pthread` enables multi-threading support.
+- Output executable: `ofs_server`.
+
+### 2. Ensure configuration files exist
+
+Check that these files are present in `compiled/`:
+
+```
+compiled/sample.omni        # Precompiled virtual filesystem image
+compiled/default.uconf      # Server configuration (port, max connections, etc.)
+```
+
+- These files define the filesystem and server settings.
+- The server reads these files during startup.
+
+### 3. Start the server
+
+Run the compiled server executable:
+
+```bash
 ./ofs_server
-Server starts listening on the default port 8080.
-Configuration options (port, max_connections, queue_timeout) can be set in default.uconf.
-4. Run the terminal client
-python3 ui/ofs_terminal_ui.py
-Connects to the server on the default host and port.
-Displays a login prompt. Enter your credentials to access the file server.
-Usage Notes
-Navigation: Use arrow keys to move, Enter to select, Esc to cancel or go back.
-Admin privileges: Required for user management and permission changes.
-JSON responses: All server responses follow a structured JSON format:
+```
+
+- The server listens on default port 8080.
+- Configuration options (e.g., `port`, `max_connections`, `queue_timeout`) can be adjusted in `default.uconf`.
+- Keep this terminal running to accept client connections.
+
+### 4. Launch the terminal client
+
+Open a new terminal and navigate to your project directory:
+
+```bash
+cd ~/Documents/fileverse_project
+python3 source/ui/ofs_terminal_ui.py
+```
+
+- The client connects to `localhost:8080` by default.
+- To connect to a remote server or different port, edit `SERVER_HOST` and `SERVER_PORT` in `ofs_terminal_ui.py`.
+
+## Usage Notes
+
+### Navigation
+
+- Arrow keys to move through menus.
+- Enter to select options.
+- Esc to cancel or go back.
+
+### Admin Privileges
+
+Required for:
+- Adding/removing users.
+- Modifying permissions.
+
+### JSON Responses
+
+All server responses are structured:
+
+```json
 {
   "status": "success",
   "operation": "read_file",
@@ -57,14 +99,38 @@ JSON responses: All server responses follow a structured JSON format:
   "error_message": "",
   "data": "File content here"
 }
-Error handling: Operations include descriptive error messages in error_message if a failure occurs.
-Quick Start Example
-Start server:
+```
+
+### Error Handling
+
+If an operation fails, `error_message` contains a descriptive message.
+
+## Quick Start Example
+
+### 1. Start server
+
+```bash
+cd ~/Documents/fileverse_project/compiled/server
 ./ofs_server
-Launch client:
-python3 ui/ofs_terminal_ui.py
-Login:
-Username: admin
-Password: password123
-Navigate menu to create, read, edit, or delete files and directories.
+```
+
+### 2. Launch client
+
+```bash
+cd ~/Documents/fileverse_project
+python3 source/ui/ofs_terminal_ui.py
+```
+
+### 3. Login
+
+- Username: `admin`
+- Password: `password123` (default set during formatting)
+
+### 4. Perform operations
+
+Navigate the client menu to:
+- Create, read, edit, delete files.
+- Create, list, delete directories.
+- Manage users (admin only).
+- Set permissions and view metadata.
 
