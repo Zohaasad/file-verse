@@ -1,37 +1,24 @@
 
 #pragma once
 #include <string>
+#include <vector>
 #include <thread>
 #include <mutex>
 #include <unordered_map>
-#include <vector>
 #include <queue>
 #include <condition_variable>
+#include "../include/ofs_types.hpp"
 
 struct OFSRequest {
-    std::string raw_cmd;
+    std::string cmd;
+    std::vector<std::string> args;
     int client_fd;
-    std::string addr;
-    uint64_t timestamp;
 };
 
 struct OFSResponse {
     int client_fd;
-    std::string response_json;
+    std::string json;
 };
-inline std::string make_response(const std::string& status, const std::string& operation,
-                                 const std::string& request_id,
-                                 const std::string& message = "",
-                                 const std::string& data = "") {
-    std::string json = "{";
-    json += "\"status\":\"" + status + "\"";
-    json += ",\"operation\":\"" + operation + "\"";
-    json += ",\"request_id\":\"" + request_id + "\"";
-    if (!message.empty()) json += ",\"error_message\":\"" + message + "\"";
-    if (!data.empty()) json += ",\"data\":\"" + data + "\"";
-    json += "}";
-    return json;
-}
 template<typename T>
 class TSQueue {
 private:
@@ -47,37 +34,38 @@ public:
 
     bool pop(T& item) {
         std::unique_lock<std::mutex> lock(mtx);
-        cv.wait(lock, [&]{ return !q.empty(); });
+        if(q.empty()) {
+            cv.wait(lock, [this]{ return !q.empty(); });
+        }
+        if(q.empty()) return false;
         item = q.front();
         q.pop();
         return true;
     }
 };
-
 class OFSServer {
-public:
-    OFSServer();
-    ~OFSServer();
-
-    bool start(uint16_t port, void* fs_instance);
-    void stop();
-
 private:
     int server_fd;
-    uint16_t listen_port;
     bool running;
-    void* fs_inst;
-
     std::thread accept_thread;
-    std::thread worker_thread;
-
-    std::mutex buf_mtx;
-    std::unordered_map<int, std::string> client_buffers;
-
+    std::vector<std::thread> worker_threads;
     TSQueue<OFSRequest> op_queue;
+    std::unordered_map<int, void*> client_sessions;
+    std::mutex session_mtx;
+    void* fs_inst;
+uint32_t max_connections;  
+uint32_t queue_timeout;  
 
     void acceptLoop();
     void workerLoop();
     void handleRequest(const OFSRequest& req);
+    std::vector<std::string> parseArgs(const std::string& line);
+    std::string make_response_json(const std::string& status, const std::string& op, const std::string& error, const std::string& data);
+public:
+    OFSServer();
+    ~OFSServer();
+      bool start(uint16_t port, void* _fs_inst, uint32_t max_conn, uint32_t queue_tmo);
+   
+    void stop();
     void sendResponse(const OFSResponse& resp);
 };
